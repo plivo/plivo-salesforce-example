@@ -1,0 +1,159 @@
+<apex:page Controller="PlivoDemo">
+  <apex:includeScript value="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js" />
+  <apex:stylesheet value="{!$Resource.plivo_style}"/>
+  <apex:includeScript value="{!$Resource.plivo_javascript}"/>
+  <apex:pagemessages />
+  <apex:form id="frm1">
+    <apex:pageBlock id="leads_table">
+      <apex:commandButton id="bulk_sms_button"  value="Send Bulk SMS"  action="{!showBulkSmsPopup}"   onclick="showOverlay()" rerender="bulksmspopup"   oncomplete="bulk_sms_init()"/>
+      <apex:commandButton id="bulk_call_button" value="Make Bulk Call" action="{!showBulkPhonePopup}" onclick="showOverlay()" rerender="bulkphonepopup" oncomplete="bulk_call_init()"/>
+      <apex:commandButton id="settings_button"  value="Settings"       action="{!showSettingsPopup}"  onclick="showOverlay()" rerender="settingspopup"  oncomplete="settings_init()" />
+      <apex:pageBlockTable value="{!leads}" var="l">
+        <apex:column >
+          <apex:facet name="header">
+            <apex:inputCheckbox onclick="disableButtons()">
+              <apex:actionSupport action="{!getSelectedNumbers}" event="onchange" onsubmit="checkAll(this)" oncomplete="enableButtons()" reRender="false"/>
+            </apex:inputCheckbox>
+          </apex:facet>
+          <apex:inputCheckbox value="{!l.selected}" styleClass="checkbox" onclick="disableButtons()">
+            <apex:actionSupport action="{!getSelectedNumbers}" event="onchange" oncomplete="enableButtons()" reRender="false"/>
+          </apex:inputCheckbox>
+        </apex:column>
+        <apex:column headervalue="Name" value="{!l.lead.name}" />
+        <apex:column headervalue="Company Name" value="{!l.lead.company}" />
+        <apex:column headervalue="Phone" value="{!l.lead.phone}"/>
+        <apex:column headerValue="Actions">
+          <!-- message icon -->
+          <apex:commandLink action="{!showSmsPopup}" onclick="showOverlay()" rerender="smspopup">
+            <apex:param name="phone" value="{!l.lead.phone}" assignTo="{!sms_recipient}"/>
+            <apex:param name="name" value="{!l.lead.name}" assignTo="{!sms_recipient_name}"/>
+            <apex:image value="/img/func_icons/util/mailCloseEnv16.gif" />
+          </apex:commandLink>
+          &nbsp;&nbsp;&nbsp;
+          <!-- call icon -->
+          <apex:commandLink action="{!showPhonePopup}" onclick="showOverlay()" rerender="phonepopup">
+            <apex:param name="phone" value="{!l.lead.phone}" assignTo="{!call_recipient}"/>
+            <apex:param name="name" value="{!l.lead.name}" assignTo="{!call_recipient_name}"/>
+            <apex:image value="https://c.ap2.visual.force.com/resource/1440155773000/PhoneImage" />
+          </apex:commandLink>
+        </apex:column>
+      </apex:pageBlockTable>
+    </apex:pageBlock>
+    
+    <apex:outputPanel id="smspopup">
+      <apex:outputPanel styleClass="customPopup" layout="block" rendered="{!displaySmsPopup}">
+        <p><apex:outputtext value="Recipient: "/><apex:outputtext id="sms_recipient_name" value="{!sms_recipient_name}" /></p>
+        <p><apex:outputLabel value="Select Template: " for="select_templates"/>
+        <apex:selectList id="select_templates" value="{!textmessage}" onchange="fill_textmessage(this.value)" size="1">
+            <apex:selectOptions value="{!smstemplates}"/>
+        </apex:selectList></p>
+        <p><apex:outputLabel value="Message: " for="textmessage"/></p>
+        <p><apex:inputtextarea id="textmessage" value="{!textmessage}" cols="46" rows="8"/></p>
+        <p><apex:actionStatus id="messageoutput1" startText="Status: pending..." stopText="Status: {!messageoutput}" /></p>
+        <apex:commandButton value="Send" action="{!sendMsg}" rerender="smspopup" status="messageoutput1"/>
+        <apex:commandButton value="Close" action="{!closepopup}" onclick="hideOverlay()" styleClass="closeButton" rerender="smspopup"/>
+      </apex:outputPanel>
+    </apex:outputPanel>
+
+    <apex:outputPanel id="phonepopup">
+      <apex:outputPanel styleClass="customPopup" layout="block" rendered="{!displayPhonePopup}">
+        <p><apex:outputtext value="Recipient: "/><apex:outputtext id="call_recipient_name" value="{!call_recipient_name}" /></p>
+        <p><apex:outputLabel value="Connect to: " for="call_sources"/>
+        <apex:selectList value="{!call_source}" size="1">
+            <apex:selectOptions id="call_sources" value="{!call_sources}" />
+        </apex:selectList></p>
+        <p><apex:actionStatus id="messageoutput2" startText="Status: pending..." stopText="Status: {!messageoutput}" /></p>
+        <apex:commandButton value="Call" action="{!placeCall}" rerender="phonepopup" status="messageoutput2"/>
+        <apex:commandButton value="Close" action="{!closepopup}" onclick="hideOverlay()" styleClass="closeButton" rerender="phonepopup"/>
+      </apex:outputPanel>
+    </apex:outputPanel>
+    
+    <apex:outputPanel id="bulksmspopup">
+      <apex:outputPanel styleClass="customPopup" layout="block" rendered="{!displayBulkSmsPopup}">
+        <p><apex:outputText value="Recipients: "/><apex:outputtext id="sms_recipients_names" value="{!sms_recipients_names}" /></p>
+        <p><apex:outputLabel value="Select Template: " for="select_sms_templates"/>
+        <apex:selectList id="select_sms_templates" value="{!textmessage}" onchange="fill_textmessage(this.value)" size="1">
+            <apex:selectOptions value="{!smstemplates}"/>
+        </apex:selectList></p>
+        <p><apex:outputLabel value="Message: " for="textmessages" />
+        <apex:inputtextarea id="textmessages" value="{!textmessage}" cols="46" rows="8"/></p>
+        <p><apex:actionStatus id="messageoutput3" startText="Status: pending..." stopText="Status: {!messageoutput}" /></p>
+        <apex:commandButton value="Send" action="{!sendMsgs}" rerender="bulksmspopup" status="messageoutput3"/>
+        <apex:commandButton value="Close" action="{!closepopup}" onclick="hideOverlay()" styleClass="closeButton" rerender="bulksmspopup"/>
+      </apex:outputPanel>
+    </apex:outputPanel>
+    
+    <apex:outputPanel id="bulkphonepopup">
+      <apex:outputPanel styleClass="customPopup" layout="block" rendered="{!displayBulkPhonePopup}">
+        <p><apex:outputText value="Recipients: "/><apex:outputtext id="call_recipients_names" value="{!call_recipients_names}"/></p>
+        <p><apex:outputLabel value="Action: " for="call_templates"/>
+        <apex:selectList id="call_templates" value="{!answer_url}" size="1">
+            <apex:selectOptions value="{!call_templates}" />
+        </apex:selectList></p>
+        <p><apex:actionStatus id="messageoutput4" startText="Status: pending..." stopText="Status: {!messageoutput}" /></p>
+        <apex:commandButton value="Call" action="{!placeCalls}" rerender="bulkphonepopup" status="messageoutput4"/>
+        <apex:commandButton value="Close" action="{!closepopup}" onclick="hideOverlay()" styleClass="closeButton" rerender="bulkphonepopup"/>
+      </apex:outputPanel>
+    </apex:outputPanel>
+    
+    <apex:outputPanel id="settingspopup">
+      <apex:outputPanel styleClass="customPopup" layout="block" rendered="{!displaySettingsPopup}">
+        <ul id="tabs">
+            <li class="active">Plivo Info</li>
+            <li>SMS Templates</li>
+            <li>Call Actions</li>
+        </ul>
+        <ul id="tab">
+            <li class="active">
+                <p><apex:outputLabel value="Plivo API Key: " for="plivo_api_key__c"/><apex:inputText value="{!user.plivo_api_key__c}" id="plivo_api_key__c" /></p>
+                <p><apex:outputLabel value="Plivo API Token: " for="plivo_api_token__c"/><apex:inputSecret redisplay="true" value="{!user.plivo_api_token__c}" id="plivo_api_token__c" /></p>
+                <p><apex:outputLabel value="Plivo Number: " for="plivo_number__c"/><apex:inputText value="{!user.plivo_number__c}" id="plivo_number__c" /></p>                
+            </li>
+            <li>
+                <div class="sms_templates_table" >
+                <table>
+                  <tbody>
+                    <tr>
+                      <td>Label</td>
+                      <td>Text</td>
+                      <td></td>
+                    </tr>
+                  </tbody>
+                </table>
+                </div>
+                <div id="add_template">
+                    <input type="text" id="sms_label_input" class="sms_label" placeholder="Label" required="true"/>
+                    <input type="text" id="sms_text_input" class="sms_text" placeholder="Template Text" required="true"/>
+                    <input type="submit" id="sms_templates_add_button" value="Add" />
+                </div>
+              <apex:inputTextArea style="visibility:hidden;position:absolute;" id="sms_template_label" value="{!user.plivo_template_label__c}" />
+              <apex:inputTextArea style="visibility:hidden;position:absolute;" id="sms_templates" value="{!user.plivo_templates__c}" />
+            </li>
+            <li>
+                <div class="call_actions_table" >
+                <table>
+                  <tbody>
+                    <tr>
+                      <td>Label</td>
+                      <td>Action URL</td>
+                      <td></td>
+                    </tr>
+                  </tbody>
+                </table>
+                </div>
+                <div id="add_call_action">
+                    <input type="text" id="call_action_label_input" class="call_action_label" placeholder="Label" required="true"/>
+                    <input type="text" id="call_action_text_input" class="call_action_text" placeholder="Action URL" required="true"/>
+                    <input type="submit" id="call_actions_add_button" value="Add" />
+                </div>
+              <apex:inputTextArea style="visibility:hidden;position:absolute;" id="call_actions_labels" value="{!user.plivo_answer_url_label__c}" />
+              <apex:inputTextArea style="visibility:hidden;position:absolute;" id="call_actions_text" value="{!user.plivo_answer_url__c}" />
+            </li>
+        </ul>
+        <apex:commandButton value="Cancel" action="{!closepopup}"   onclick="hideOverlay()" styleClass="closeButton" rerender="settingspopup"/>
+        <apex:commandButton value="Save"   action="{!SaveSettings}" onclick="hideOverlay()" styleClass="closeButton" rerender="settingspopup"/>
+      </apex:outputPanel>
+    </apex:outputPanel>
+    
+  </apex:form>
+</apex:page>
